@@ -87,11 +87,9 @@ def login():
         return make_response('Unable to verify', 403, {'WWW-Authenticate': 'Basic realm: "Authentication Failed "'})
 
 @app.route('/logout')
-@token_required
 def logout():
     session.pop('logged_in', None)
     response = make_response('Logged out successfully', 200)
-    print(response)
     response.delete_cookie('token')  # Remove the 'token' cookie
     return redirect('/')
 
