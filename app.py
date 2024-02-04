@@ -56,8 +56,7 @@ def token_required(func):
     def decorated(*args, **kwargs):
         token = request.cookies.get('token')
         if not token:
-            return jsonify({'Alert!': 'Token is missing!'}), 401
-
+            return redirect('/login')
         try:
             data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
         # You can use the JWT errors in exception
@@ -68,30 +67,34 @@ def token_required(func):
         return func(*args, **kwargs)
     return decorated
 
-@app.route('/login', methods=['POST'])
-def login():
-    if request.form['username'] and request.form['password'] == '123456':
-        session['logged_in'] = True
 
-        token = jwt.encode({
-            'user': request.form['username'],
-            # don't foget to wrap it in str function, otherwise it won't work [ i struggled with this one! ]
-            'expiration': str(datetime.utcnow() + timedelta(seconds=60))
-        },
-            app.config['SECRET_KEY'])
-        # return jsonify({'token': token})
-        response = make_response(jsonify({'token': token}))
-        response.set_cookie('token', token, samesite='None', secure=True)
-        return redirect('/')
-    else:
-        return make_response('Unable to verify', 403, {'WWW-Authenticate': 'Basic realm: "Authentication Failed "'})
+@app.route('/login', methods=['POST', 'GET'])
+def login():
+    if request.method == "GET":
+        return render_template('login.html')
+    else:   
+        if request.form['username'] and request.form['password'] == '123456':
+            session['logged_in'] = True
+            token = jwt.encode({
+                'user': request.form['username'],
+                'expiration': str(datetime.utcnow() + timedelta(seconds=60))
+            },
+                app.config['SECRET_KEY'])
+
+            # Set the token as a cookie
+            response = make_response(redirect('/'))
+            response.set_cookie('token', token, samesite='None', secure=True)
+            return response
+        else:
+            return make_response('Unable to verify', 403, {'WWW-Authenticate': 'Basic realm: "Authentication Failed "'})
+
 
 @app.route('/logout')
 def logout():
     session.pop('logged_in', None)
-    response = make_response('Logged out successfully', 200)
+    response = make_response(redirect('/'))
     response.delete_cookie('token')  # Remove the 'token' cookie
-    return redirect('/')
+    return response
 
 @app.route('/')
 def index():
@@ -101,8 +104,8 @@ def index():
     Also passes along the currently active tab. If the active tab was removed, selects
     the first project in the Projects database and sets that one as the active one.
     """
-    if not session.get('logged_in'):
-        return render_template('login.html')
+    if not session.get('logged_in') :
+        return redirect('/login')
     else:
         active = None
         projects = Projects.query.all()
@@ -177,26 +180,6 @@ def add_task():
     db.session.add(new_task)
     db.session.commit()
     return redirect('/')
-
-@app.route('/edit/<int:task_id>', methods=['GET', 'POST'])
-@token_required
-def edit_task(task_id):
-    """Edits an existing task"""
-    task = Tasks.query.get(task_id)
-
-    if not task:
-        return redirect('/')
-
-    if request.method == 'POST':
-        # Update task details based on the form submission
-        task.task = request.form['task']
-        task.status = bool(int(request.form['status']))
-
-        db.session.commit()
-        return redirect('/')
-
-    # Render the edit form with the current task details
-    return render_template('edit_task.html', task=task)
 
 @app.route('/close/<int:task_id>')
 @token_required
