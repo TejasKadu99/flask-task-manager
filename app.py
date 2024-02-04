@@ -54,7 +54,8 @@ def token_required(func):
     # decorator factory which invoks update_wrapper() method and passes decorated function as an argument
     @wraps(func)
     def decorated(*args, **kwargs):
-        token = request.cookies.get('token')
+        token = session.get('token')
+        
         if not token:
             return redirect('/login')
         try:
@@ -80,10 +81,9 @@ def login():
                 'expiration': str(datetime.utcnow() + timedelta(seconds=60))
             },
                 app.config['SECRET_KEY'])
-
+            session['token'] = token
             # Set the token as a cookie
             response = make_response(redirect('/'))
-            response.set_cookie('token', token, samesite='None', secure=True)
             return response
         else:
             return make_response('Unable to verify', 403, {'WWW-Authenticate': 'Basic realm: "Authentication Failed "'})
